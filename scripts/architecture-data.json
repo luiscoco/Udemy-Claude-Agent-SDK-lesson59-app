@@ -1,0 +1,273 @@
+{
+  "lanes": [
+    "Student",
+    "Web host",
+    "SDK / CLI",
+    "Client SDK",
+    "Managed API"
+  ],
+  "arrows": [
+    [
+      0,
+      1,
+      "1. Choose a fixed experiment"
+    ],
+    [
+      1,
+      2,
+      "2. Configure the local SDK boundary"
+    ],
+    [
+      1,
+      2,
+      "3. Run the actual Agent SDK loop"
+    ],
+    [
+      1,
+      2,
+      "4. Invoke the actual headless CLI"
+    ],
+    [
+      1,
+      3,
+      "5. Make a Client SDK model request"
+    ],
+    [
+      1,
+      3,
+      "6. Dispatch a tool and preserve its ID"
+    ],
+    [
+      1,
+      4,
+      "7. Create a dedicated hosted agent"
+    ],
+    [
+      1,
+      4,
+      "8. Create the cloud environment"
+    ],
+    [
+      1,
+      4,
+      "9. Create a bounded retained session"
+    ],
+    [
+      1,
+      4,
+      "10. Open observation before sending"
+    ],
+    [
+      4,
+      1,
+      "11. Observe the hosted answer"
+    ],
+    [
+      1,
+      2,
+      "12. Review a small legacy transformation"
+    ],
+    [
+      1,
+      0,
+      "13. Grade the task and owned cleanup"
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "title": "Choose a fixed experiment",
+      "source": "src/protocol.ts",
+      "code": "if (\n    !value ||\n    Object.keys(value).some((k) => k !== \"mode\") ||\n    !MODES.includes(value.mode)\n  )\n    throw new Error(\"Choose a listed platform or migration experiment.\");\n  return { mode: value.mode };\n}",
+      "language": "typescript",
+      "explanation": "The browser selects a reviewed experiment. Validate the mode and reject arbitrary commands, paths and foreign session IDs.",
+      "firstLine": 16,
+      "lastLine": 23,
+      "anchors": [
+        "if ("
+      ],
+      "sourceSHA256": "32881a10ef28fab84822875a5c3fc04965ae62a0916f6007eb076ff8cc3dfac9",
+      "narration": "Step 1. The browser selects a reviewed experiment. Validate the mode and reject arbitrary commands, paths and foreign session IDs. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 2,
+      "title": "Configure the local SDK boundary",
+      "source": "src/local.ts",
+      "code": "const options: Options = {\n    cwd: w.cwd,\n    env: privateEnv(w),\n    model: process.env.CLAUDE_MODEL || \"claude-sonnet-4-6\",\n    tools: [],\n    allowedTools: custom ? [\"mcp__expense59__check_policy\"] : [],\n    permissionMode: \"dontAsk\",\n    settingSources: [],\n    systemPrompt: ROLE,",
+      "language": "typescript",
+      "explanation": "Run the SDK in a fresh temporary workspace with explicit settings, tools, permissions and finite limits. The SDK runtime owns local orchestration; these settings are not a complete operating-system sandbox.",
+      "firstLine": 44,
+      "lastLine": 52,
+      "anchors": [
+        "const options: Options = {"
+      ],
+      "sourceSHA256": "04dd22eb415fd5a0759dadc03e67c0abfd5d6a269fb41c81d79e9675e230132d",
+      "narration": "Step 2. Run the SDK in a fresh temporary workspace with explicit settings, tools, permissions and finite limits. The SDK runtime owns local orchestration; these settings are not a complete operating-system sandbox. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 3,
+      "title": "Run the actual Agent SDK loop",
+      "source": "src/local.ts",
+      "code": "const run = query({ prompt: custom ? input() : prompt, options });\n  let result: any;\n  try {\n    for await (const m of run) {\n      if (m.type === \"assistant\")\n        for (const b of m.message.content) {\n          if (b.type === \"text\") emit({ type: \"text\", text: b.text });\n          if (b.type === \"tool_use\")",
+      "language": "typescript",
+      "explanation": "Consume real SDK messages and terminal results. In-process MCP mode keeps streaming input open while the tool handler runs. A new query can resume a retained local session ID.",
+      "firstLine": 104,
+      "lastLine": 111,
+      "anchors": [
+        "const run = query({ prompt: custom ? input() : prompt, options });"
+      ],
+      "sourceSHA256": "04dd22eb415fd5a0759dadc03e67c0abfd5d6a269fb41c81d79e9675e230132d",
+      "narration": "Step 3. Consume real SDK messages and terminal results. In-process MCP mode keeps streaming input open while the tool handler runs. A new query can resume a retained local session ID. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 4,
+      "title": "Invoke the actual headless CLI",
+      "source": "src/local.ts",
+      "code": "const p = await runProcess(cliExecutable(), args, {\n    cwd: w.cwd,\n    env: privateEnv(w),\n    signal,\n  });\n  if (p.exitCode !== 0)\n    throw new Error(\"CLI exited \" + p.exitCode + \": \" + p.stderr.slice(-600));\n  const native = JSON.parse(p.stdout);",
+      "language": "typescript",
+      "explanation": "Spawn the installed native CLI without a shell, pass fixed arguments and observe its actual exit code. The private launching environment supplies the API key; stdout contains native JSON.",
+      "firstLine": 173,
+      "lastLine": 180,
+      "anchors": [
+        "const p = await runProcess(cliExecutable(), args, {"
+      ],
+      "sourceSHA256": "04dd22eb415fd5a0759dadc03e67c0abfd5d6a269fb41c81d79e9675e230132d",
+      "narration": "Step 4. Spawn the installed native CLI without a shell, pass fixed arguments and observe its actual exit code. The private launching environment supplies the API key; stdout contains native JSON. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 5,
+      "title": "Make a Client SDK model request",
+      "source": "src/client-loop.ts",
+      "code": "const message = await client.messages.create(\n      {\n        model: process.env.CLAUDE_MODEL || \"claude-sonnet-4-6\",\n        max_tokens: 180,\n        system: ROLE + \" Always call check_policy once before answering.\",\n        messages,\n        tools: [\n          {",
+      "language": "typescript",
+      "explanation": "The Client SDK sends a Messages request and returns content blocks. It does not execute application business functions for you. This app bounds the tool loop to three rounds.",
+      "firstLine": 28,
+      "lastLine": 35,
+      "anchors": [
+        "const message = await client.messages.create("
+      ],
+      "sourceSHA256": "b57f8bcc1c71dfee46477fa8508af60723df133703062b9749ece4db09bcb8a6",
+      "narration": "Step 5. The Client SDK sends a Messages request and returns content blocks. It does not execute application business functions for you. This app bounds the tool loop to three rounds. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 6,
+      "title": "Dispatch a tool and preserve its ID",
+      "source": "src/client-loop.ts",
+      "code": "for (const use of uses) {\n      if (use.name !== \"check_policy\") throw new Error(\"Unregistered tool\");\n      const value = checkPolicy((use.input as any).amount);\n      calls++;\n      emit({\n        type: \"observation\",\n        observation: {\n          kind: \"custom-tool\",\n          detail: { ...value, toolUseId: use.id, loopOwner: \"application\" },",
+      "language": "typescript",
+      "explanation": "Validate the requested tool name and its amount, call trusted business logic, then return a tool_result linked to the original tool_use ID. This dispatch loop belongs to the application.",
+      "firstLine": 97,
+      "lastLine": 105,
+      "anchors": [
+        "for (const use of uses) {"
+      ],
+      "sourceSHA256": "b57f8bcc1c71dfee46477fa8508af60723df133703062b9749ece4db09bcb8a6",
+      "narration": "Step 6. Validate the requested tool name and its amount, call trusted business logic, then return a tool_result linked to the original tool_use ID. This dispatch loop belongs to the application. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 7,
+      "title": "Create a dedicated hosted agent",
+      "source": "src/managed.ts",
+      "code": "const agent = await this.client.beta.agents.create(\n      {\n        name: \"SDK59 classroom \" + this.id,\n        model: process.env.CLAUDE_MODEL || \"claude-sonnet-4-6\",\n        system: ROLE,\n        tools: [],\n      },\n      { signal: this.signal },\n    );",
+      "language": "typescript",
+      "explanation": "Create only this experiment\u2019s named agent with no tools for the text-only comparison. The official Client SDK calls the Managed Agents API; Anthropic hosts the harness.",
+      "firstLine": 33,
+      "lastLine": 41,
+      "anchors": [
+        "const agent = await this.client.beta.agents.create("
+      ],
+      "sourceSHA256": "202a6e775e102aea36e2e8b95dc5cacf15e747945eaea72b53a426c58c8cd05e",
+      "narration": "Step 7. Create only this experiment\u2019s named agent with no tools for the text-only comparison. The official Client SDK calls the Managed Agents API; Anthropic hosts the harness. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 8,
+      "title": "Create the cloud environment",
+      "source": "src/managed.ts",
+      "code": "const environment = await this.client.beta.environments.create(\n      {\n        name: \"SDK59 classroom \" + this.id,\n        config: {\n          type: \"cloud\",\n          networking: { type: \"limited\", allow_package_managers: false },\n        },\n      },\n      { signal: this.signal },",
+      "language": "typescript",
+      "explanation": "Create a dedicated limited-network cloud configuration and journal its new ID immediately. No supplied IDs from older lessons or other users are accepted.",
+      "firstLine": 44,
+      "lastLine": 52,
+      "anchors": [
+        "const environment = await this.client.beta.environments.create("
+      ],
+      "sourceSHA256": "202a6e775e102aea36e2e8b95dc5cacf15e747945eaea72b53a426c58c8cd05e",
+      "narration": "Step 8. Create a dedicated limited-network cloud configuration and journal its new ID immediately. No supplied IDs from older lessons or other users are accepted. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 9,
+      "title": "Create a bounded retained session",
+      "source": "src/managed.ts",
+      "code": "const session = await this.client.beta.sessions.create(\n      {\n        agent: agent.id,\n        environment_id: environment.id,\n        budget: {\n          type: \"limit\",\n          max_list_cost: { amount: \"50\", currency: \"USD\" },\n        },\n      },\n      { signal: this.signal },",
+      "language": "typescript",
+      "explanation": "Reference the new agent and environment. The Managed budget uses integer USD minor units: amount 50 means fifty cents, not fifty dollars. Its list-cost limit differs from the SDK estimate threshold.",
+      "firstLine": 56,
+      "lastLine": 65,
+      "anchors": [
+        "const session = await this.client.beta.sessions.create("
+      ],
+      "sourceSHA256": "202a6e775e102aea36e2e8b95dc5cacf15e747945eaea72b53a426c58c8cd05e",
+      "narration": "Step 9. Reference the new agent and environment. The Managed budget uses integer USD minor units: amount 50 means fifty cents, not fifty dollars. Its list-cost limit differs from the SDK estimate threshold. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 10,
+      "title": "Open observation before sending",
+      "source": "src/managed.ts",
+      "code": "let stream = await this.client.beta.sessions.events.stream(\n      sessionId,\n      {},\n      { signal: this.signal },\n    );\n    let text = \"\",\n      idle: any = null,",
+      "language": "typescript",
+      "explanation": "Open the actual session SSE stream before sending the user event. Observe native event IDs and avoid replaying already seen events across turns.",
+      "firstLine": 85,
+      "lastLine": 91,
+      "anchors": [
+        "let stream = await this.client.beta.sessions.events.stream("
+      ],
+      "sourceSHA256": "202a6e775e102aea36e2e8b95dc5cacf15e747945eaea72b53a426c58c8cd05e",
+      "narration": "Step 10. Open the actual session SSE stream before sending the user event. Observe native event IDs and avoid replaying already seen events across turns. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 11,
+      "title": "Observe the hosted answer",
+      "source": "src/managed.ts",
+      "code": "if (event.type === \"agent.message\")\n        for (const b of event.content)\n          if (b.type === \"text\") {\n            text += b.text;\n            this.emit({ type: \"text\", text: b.text });\n          }\n      if (\n        event.type === \"session.error\" ||",
+      "language": "typescript",
+      "explanation": "Render actual agent.message text and wait for a real idle event after the reply. Do not treat an initial idle status or a local fake result as a completed hosted turn.",
+      "firstLine": 102,
+      "lastLine": 109,
+      "anchors": [
+        "if (event.type === \"agent.message\")"
+      ],
+      "sourceSHA256": "202a6e775e102aea36e2e8b95dc5cacf15e747945eaea72b53a426c58c8cd05e",
+      "narration": "Step 11. Render actual agent.message text and wait for a real idle event after the reply. Do not treat an initial idle status or a local fake result as a completed hosted turn. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 12,
+      "title": "Review a small legacy transformation",
+      "source": "src/migrations.ts",
+      "code": "const after = before\n    .replace(\"@anthropic-ai/claude-code\", \"@anthropic-ai/claude-agent-sdk\")\n    .replace(\n      \"/* REVIEW_SYSTEM_PROMPT_AND_SETTINGS */\",\n      'systemPrompt: \"Classroom expense assistant\", settingSources: [], tools: [], permissionMode: \"dontAsk\", maxTurns: 3',\n    );\n  const checks = {\n    modernImport: after.includes(\"@anthropic-ai/claude-agent-sdk\"),",
+      "language": "typescript",
+      "explanation": "Transform a historical fixture as text and review explicit modern configuration. This is a narrow illustration, not a general codemod. The separate modern SDK runner executes the regression task.",
+      "firstLine": 7,
+      "lastLine": 14,
+      "anchors": [
+        "const after = before"
+      ],
+      "sourceSHA256": "7804237c457c1eec91bfceedc05619afd65c4d4be95c88f193fe4a91aa8b7720",
+      "narration": "Step 12. Transform a historical fixture as text and review explicit modern configuration. This is a narrow illustration, not a general codemod. The separate modern SDK runner executes the regression task. This source excerpt shows the corresponding application statement."
+    },
+    {
+      "number": 13,
+      "title": "Grade the task and owned cleanup",
+      "source": "src/runner.ts",
+      "code": "checks.ownedResourcesCleaned = cleanupErrors.length === 0;\n  const passed =\n    !exception &&\n    Object.keys(checks).length >= 3 &&\n    Object.values(checks).every(Boolean);\n  return {",
+      "language": "typescript",
+      "explanation": "Require observed native success and experiment-specific checks, including actual handlers, recall or cleanup. SDK, CLI, Messages and Managed result shapes remain distinct in the evidence.",
+      "firstLine": 142,
+      "lastLine": 147,
+      "anchors": [
+        "checks.ownedResourcesCleaned = cleanupErrors.length === 0;"
+      ],
+      "sourceSHA256": "dd338ffc071f9a332e575521d0513338ae8619b46352e92df80a8dd406548b14",
+      "narration": "Step 13. Require observed native success and experiment-specific checks, including actual handlers, recall or cleanup. SDK, CLI, Messages and Managed result shapes remain distinct in the evidence. This source excerpt shows the corresponding application statement."
+    }
+  ]
+}

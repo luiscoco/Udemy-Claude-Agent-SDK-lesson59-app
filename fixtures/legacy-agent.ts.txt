@@ -1,0 +1,6 @@
+import { query } from "@anthropic-ai/claude-code";
+// Historical illustration only; never installed.
+for await (const message of query({
+  prompt: "Classify the classroom expense.",
+  options: { /* REVIEW_SYSTEM_PROMPT_AND_SETTINGS */ }
+})) console.log(message);

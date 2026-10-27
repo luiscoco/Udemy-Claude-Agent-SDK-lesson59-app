@@ -1,0 +1,95 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agent SDK LESSON 59 · Architecture and &lt;em&gt;UML workflow.&lt;/em&gt;</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/code-highlighting.css"></head><body><main><div class="brand"><a href="/">How <span>Claude Agent SDK</span> Works</a><span class="badge">LESSON 59 / PLATFORMS & MIGRATIONS</span></div><header class="hero"><div><div class="eyebrow">COMPARE · CHOOSE · MIGRATE</div><h1>Architecture and <em>UML workflow.</em></h1><p class="lead">Every one of the thirteen steps includes matching coloured source code.</p></div><img src="/astronaut.png" alt="Course astronaut mascot"></header><nav class="nav" aria-label="Application sections"><a href="/">Application lab</a><a href="/learn.html">What you will learn</a><a href="/run.html">How to run</a><a href="/architecture.html" aria-current="page">Architecture & workflow</a><a href="/walkthrough.html">Code walkthrough</a><button id="theme" type="button">Dark mode</button></nav><p class="note">The host dispatches four distinct native paths. Local SDK and CLI runtimes, a handwritten Client SDK tool loop, and a hosted Managed Agents harness have different ownership and state boundaries. Every workflow step includes matching source.</p><a class="button" href="/architecture.svg" download>Download UML SVG</a><div class="diagram"><img src="/architecture.svg" alt="Thirteen-step evaluation harness sequence"></div><section class="step workflow-step" id="workflow-step-01"><span class="number">01</span><h3>1. Choose a fixed experiment</h3><p>The browser selects a reviewed experiment. Validate the mode and reject arbitrary commands, paths and foreign session IDs.</p><p class="source">Source: src/protocol.ts · lines 16–23 · selected source; surrounding code omitted</p><pre><code class="language-typescript">if (
+    !value ||
+    Object.keys(value).some((k) =&gt; k !== &quot;mode&quot;) ||
+    !MODES.includes(value.mode)
+  )
+    throw new Error(&quot;Choose a listed platform or migration experiment.&quot;);
+  return { mode: value.mode };
+}</code></pre></section><section class="step workflow-step" id="workflow-step-02"><span class="number">02</span><h3>2. Configure the local SDK boundary</h3><p>Run the SDK in a fresh temporary workspace with explicit settings, tools, permissions and finite limits. The SDK runtime owns local orchestration; these settings are not a complete operating-system sandbox.</p><p class="source">Source: src/local.ts · lines 44–52 · selected source; surrounding code omitted</p><pre><code class="language-typescript">const options: Options = {
+    cwd: w.cwd,
+    env: privateEnv(w),
+    model: process.env.CLAUDE_MODEL || &quot;claude-sonnet-4-6&quot;,
+    tools: [],
+    allowedTools: custom ? [&quot;mcp__expense59__check_policy&quot;] : [],
+    permissionMode: &quot;dontAsk&quot;,
+    settingSources: [],
+    systemPrompt: ROLE,</code></pre></section><section class="step workflow-step" id="workflow-step-03"><span class="number">03</span><h3>3. Run the actual Agent SDK loop</h3><p>Consume real SDK messages and terminal results. In-process MCP mode keeps streaming input open while the tool handler runs. A new query can resume a retained local session ID.</p><p class="source">Source: src/local.ts · lines 104–111 · selected source; surrounding code omitted</p><pre><code class="language-typescript">const run = query({ prompt: custom ? input() : prompt, options });
+  let result: any;
+  try {
+    for await (const m of run) {
+      if (m.type === &quot;assistant&quot;)
+        for (const b of m.message.content) {
+          if (b.type === &quot;text&quot;) emit({ type: &quot;text&quot;, text: b.text });
+          if (b.type === &quot;tool_use&quot;)</code></pre></section><section class="step workflow-step" id="workflow-step-04"><span class="number">04</span><h3>4. Invoke the actual headless CLI</h3><p>Spawn the installed native CLI without a shell, pass fixed arguments and observe its actual exit code. The private launching environment supplies the API key; stdout contains native JSON.</p><p class="source">Source: src/local.ts · lines 173–180 · selected source; surrounding code omitted</p><pre><code class="language-typescript">const p = await runProcess(cliExecutable(), args, {
+    cwd: w.cwd,
+    env: privateEnv(w),
+    signal,
+  });
+  if (p.exitCode !== 0)
+    throw new Error(&quot;CLI exited &quot; + p.exitCode + &quot;: &quot; + p.stderr.slice(-600));
+  const native = JSON.parse(p.stdout);</code></pre></section><section class="step workflow-step" id="workflow-step-05"><span class="number">05</span><h3>5. Make a Client SDK model request</h3><p>The Client SDK sends a Messages request and returns content blocks. It does not execute application business functions for you. This app bounds the tool loop to three rounds.</p><p class="source">Source: src/client-loop.ts · lines 28–35 · selected source; surrounding code omitted</p><pre><code class="language-typescript">const message = await client.messages.create(
+      {
+        model: process.env.CLAUDE_MODEL || &quot;claude-sonnet-4-6&quot;,
+        max_tokens: 180,
+        system: ROLE + &quot; Always call check_policy once before answering.&quot;,
+        messages,
+        tools: [
+          {</code></pre></section><section class="step workflow-step" id="workflow-step-06"><span class="number">06</span><h3>6. Dispatch a tool and preserve its ID</h3><p>Validate the requested tool name and its amount, call trusted business logic, then return a tool_result linked to the original tool_use ID. This dispatch loop belongs to the application.</p><p class="source">Source: src/client-loop.ts · lines 97–105 · selected source; surrounding code omitted</p><pre><code class="language-typescript">for (const use of uses) {
+      if (use.name !== &quot;check_policy&quot;) throw new Error(&quot;Unregistered tool&quot;);
+      const value = checkPolicy((use.input as any).amount);
+      calls++;
+      emit({
+        type: &quot;observation&quot;,
+        observation: {
+          kind: &quot;custom-tool&quot;,
+          detail: { ...value, toolUseId: use.id, loopOwner: &quot;application&quot; },</code></pre></section><section class="step workflow-step" id="workflow-step-07"><span class="number">07</span><h3>7. Create a dedicated hosted agent</h3><p>Create only this experiment’s named agent with no tools for the text-only comparison. The official Client SDK calls the Managed Agents API; Anthropic hosts the harness.</p><p class="source">Source: src/managed.ts · lines 33–41 · selected source; surrounding code omitted</p><pre><code class="language-typescript">const agent = await this.client.beta.agents.create(
+      {
+        name: &quot;SDK59 classroom &quot; + this.id,
+        model: process.env.CLAUDE_MODEL || &quot;claude-sonnet-4-6&quot;,
+        system: ROLE,
+        tools: [],
+      },
+      { signal: this.signal },
+    );</code></pre></section><section class="step workflow-step" id="workflow-step-08"><span class="number">08</span><h3>8. Create the cloud environment</h3><p>Create a dedicated limited-network cloud configuration and journal its new ID immediately. No supplied IDs from older lessons or other users are accepted.</p><p class="source">Source: src/managed.ts · lines 44–52 · selected source; surrounding code omitted</p><pre><code class="language-typescript">const environment = await this.client.beta.environments.create(
+      {
+        name: &quot;SDK59 classroom &quot; + this.id,
+        config: {
+          type: &quot;cloud&quot;,
+          networking: { type: &quot;limited&quot;, allow_package_managers: false },
+        },
+      },
+      { signal: this.signal },</code></pre></section><section class="step workflow-step" id="workflow-step-09"><span class="number">09</span><h3>9. Create a bounded retained session</h3><p>Reference the new agent and environment. The Managed budget uses integer USD minor units: amount 50 means fifty cents, not fifty dollars. Its list-cost limit differs from the SDK estimate threshold.</p><p class="source">Source: src/managed.ts · lines 56–65 · selected source; surrounding code omitted</p><pre><code class="language-typescript">const session = await this.client.beta.sessions.create(
+      {
+        agent: agent.id,
+        environment_id: environment.id,
+        budget: {
+          type: &quot;limit&quot;,
+          max_list_cost: { amount: &quot;50&quot;, currency: &quot;USD&quot; },
+        },
+      },
+      { signal: this.signal },</code></pre></section><section class="step workflow-step" id="workflow-step-10"><span class="number">10</span><h3>10. Open observation before sending</h3><p>Open the actual session SSE stream before sending the user event. Observe native event IDs and avoid replaying already seen events across turns.</p><p class="source">Source: src/managed.ts · lines 85–91 · selected source; surrounding code omitted</p><pre><code class="language-typescript">let stream = await this.client.beta.sessions.events.stream(
+      sessionId,
+      {},
+      { signal: this.signal },
+    );
+    let text = &quot;&quot;,
+      idle: any = null,</code></pre></section><section class="step workflow-step" id="workflow-step-11"><span class="number">11</span><h3>11. Observe the hosted answer</h3><p>Render actual agent.message text and wait for a real idle event after the reply. Do not treat an initial idle status or a local fake result as a completed hosted turn.</p><p class="source">Source: src/managed.ts · lines 102–109 · selected source; surrounding code omitted</p><pre><code class="language-typescript">if (event.type === &quot;agent.message&quot;)
+        for (const b of event.content)
+          if (b.type === &quot;text&quot;) {
+            text += b.text;
+            this.emit({ type: &quot;text&quot;, text: b.text });
+          }
+      if (
+        event.type === &quot;session.error&quot; ||</code></pre></section><section class="step workflow-step" id="workflow-step-12"><span class="number">12</span><h3>12. Review a small legacy transformation</h3><p>Transform a historical fixture as text and review explicit modern configuration. This is a narrow illustration, not a general codemod. The separate modern SDK runner executes the regression task.</p><p class="source">Source: src/migrations.ts · lines 7–14 · selected source; surrounding code omitted</p><pre><code class="language-typescript">const after = before
+    .replace(&quot;@anthropic-ai/claude-code&quot;, &quot;@anthropic-ai/claude-agent-sdk&quot;)
+    .replace(
+      &quot;/* REVIEW_SYSTEM_PROMPT_AND_SETTINGS */&quot;,
+      &#x27;systemPrompt: &quot;Classroom expense assistant&quot;, settingSources: [], tools: [], permissionMode: &quot;dontAsk&quot;, maxTurns: 3&#x27;,
+    );
+  const checks = {
+    modernImport: after.includes(&quot;@anthropic-ai/claude-agent-sdk&quot;),</code></pre></section><section class="step workflow-step" id="workflow-step-13"><span class="number">13</span><h3>13. Grade the task and owned cleanup</h3><p>Require observed native success and experiment-specific checks, including actual handlers, recall or cleanup. SDK, CLI, Messages and Managed result shapes remain distinct in the evidence.</p><p class="source">Source: src/runner.ts · lines 142–147 · selected source; surrounding code omitted</p><pre><code class="language-typescript">checks.ownedResourcesCleaned = cleanupErrors.length === 0;
+  const passed =
+    !exception &amp;&amp;
+    Object.keys(checks).length &gt;= 3 &amp;&amp;
+    Object.values(checks).every(Boolean);
+  return {</code></pre></section><footer>CLAUDE AGENT SDK · LESSON 59 · LOOP · STATE · CONTROL<br>TypeScript · local runtime · API key stays on the server</footer></main><script src="/navigation.js"></script><script src="/prism.js"></script><script src="/prism-markup.min.js"></script><script src="/prism-sql.min.js"></script><script src="/prism-diff.min.js"></script><script src="/prism-yaml.min.js"></script><script src="/prism-markdown.min.js"></script><script src="/prism-python.min.js"></script><script src="/prism-docker.min.js"></script><script src="/code-highlighting.js"></script><script src="/marked.umd.js"></script><script src="/purify.min.js"></script></body></html>

@@ -1,0 +1,7 @@
+# Historical comparison fixture only; not executed.
+from agents import Agent, Runner, function_tool
+@function_tool
+def check_policy(amount: int):
+    return {"limit": 75, "amount": amount}
+agent = Agent(name="Expense", instructions="Use check_policy", tools=[check_policy])
+# Runner.run(agent, "Classify a $47 meal")
